@@ -1,3 +1,6 @@
+let offscreenCloseTimer: ReturnType<typeof setTimeout> | null = null;
+let activeOffscreenOperations: number = 0;
+
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
         id: 'easy-image-save',
@@ -85,16 +88,20 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
                 handleError(error);
             }
         } else if (menuItemId === 'copy-to-clipboard') {
-            try {
-                await processImageCopy(imageUrl);
-                chrome.notifications.create({
-                    type: 'basic',
-                    iconUrl: 'icon-48.png',
-                    title: 'Copied!',
-                    message: 'Image copied to clipboard as PNG.'
-                });
-            } catch (error: any) {
-                handleError(error);
+            if (tab) {
+                if (tab.id) {
+                    try {
+                        await processImageCopy(imageUrl, tab.id);
+                        chrome.notifications.create({
+                            type: 'basic',
+                            iconUrl: 'icon-48.png',
+                            title: 'Copied!',
+                            message: 'Image copied to clipboard as PNG.'
+                        });
+                    } catch (error: any) {
+                        handleError(error);
+                    }
+                }
             }
         }
     }
@@ -106,6 +113,12 @@ function handleError(error: any) {
     if (error.message) {
         errorMessage = error.message;
     }
+
+    // Provide a specific hint for "Could not establish connection"
+    if (errorMessage.includes('Could not establish connection')) {
+        errorMessage = 'Please refresh the webpage and try again.';
+    }
+
     chrome.notifications.create({
         type: 'basic',
         iconUrl: 'icon-48.png',
@@ -120,7 +133,7 @@ async function ensureOffscreenDocument() {
     }
 
     const offscreenPath = 'src/background/offscreen.html';
-    const reasons = ['CANVAS', 'DOM_PARSER'];
+    const reasons = ['CLIPBOARD', 'CANVAS', 'DOM_PARSER'];
 
     for (const reason of reasons) {
         try {
@@ -129,6 +142,7 @@ async function ensureOffscreenDocument() {
                 reasons: [reason as chrome.offscreen.Reason],
                 justification: 'Image format conversion and clipboard access'
             });
+            console.log('Offscreen document created successfully with reason: ' + reason);
             return;
         } catch (e: any) {
             if (e.message) {
@@ -136,102 +150,196 @@ async function ensureOffscreenDocument() {
                     return;
                 }
             }
+            console.warn('Failed to create offscreen document with reason ' + reason + ': ' + e.message);
         }
     }
-    throw new Error('Failed to create offscreen document.');
+    throw new Error('Failed to create offscreen document with any supported reason.');
+}
+
+function scheduleOffscreenClosing() {
+    // Clear any existing timer
+    if (offscreenCloseTimer) {
+        clearTimeout(offscreenCloseTimer);
+        offscreenCloseTimer = null;
+    }
+
+    // Only schedule closing if no operations are active
+    if (activeOffscreenOperations === 0) {
+        offscreenCloseTimer = setTimeout(async () => {
+            try {
+                const hasDocument = await chrome.offscreen.hasDocument();
+                if (hasDocument) {
+                    if (activeOffscreenOperations === 0) {
+                        await chrome.offscreen.closeDocument();
+                        console.log('Offscreen document closed due to inactivity.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error during offscreen document closing:', error);
+            } finally {
+                offscreenCloseTimer = null;
+            }
+        }, 30000); // 30 seconds of inactivity
+    }
 }
 
 function sanitizeFilename(name: string): string {
-    return name.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+    // Remove common illegal characters and trim multiple underscores
+    return name.replace(/[<>:"/\\|?*]/g, '_')
+               .replace(/\s+/g, '_')
+               .replace(/_{2,}/g, '_')
+               .replace(/^_+|_+$/g, '');
 }
 
-function generateFilename(url: string, format: string, altText: string | null, pageTitle: string | null): string {
-    let baseName = '';
+function cleanPageTitle(title: string): string {
+    const separators = [' - ', ' | ', ' : ', ' – ', ' — '];
+    let cleaned = title;
+    
+    for (const sep of separators) {
+        if (cleaned.includes(sep)) {
+            const parts = cleaned.split(sep);
+            if (parts[0]) {
+                if (parts[0].trim().length > 3) {
+                    cleaned = parts[0].trim();
+                    break;
+                }
+            }
+        }
+    }
+    
+    return cleaned;
+}
 
-    // 1. Try to get filename from URL
+function cleanUrlBasename(url: string): string {
     try {
         const urlObj = new URL(url);
         const pathParts = urlObj.pathname.split('/');
-        const lastPart = pathParts[pathParts.length - 1];
-        if (lastPart) {
-            const dotIndex = lastPart.lastIndexOf('.');
-            if (dotIndex > 0) {
-                baseName = lastPart.substring(0, dotIndex);
-            } else {
-                baseName = lastPart;
-            }
+        let lastPart = pathParts[pathParts.length - 1];
+        
+        if (!lastPart) {
+            return '';
         }
+
+        const dotIndex = lastPart.lastIndexOf('.');
+        if (dotIndex > 0) {
+            lastPart = lastPart.substring(0, dotIndex);
+        }
+
+        lastPart = lastPart.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '');
+        lastPart = lastPart.replace(/(_[wrfpx]{1,3}[0-9.]+)/gi, '');
+        lastPart = lastPart.replace(/^[_\-]+|[_\-]+$/g, '');
+
+        return lastPart;
     } catch (e) {
-        // Ignore URL parsing errors
+        return '';
     }
+}
 
-    // 2. Fallback to alt text if URL basename is empty or too short
-    if (baseName.length < 3) {
-        if (altText) {
-            if (altText.trim().length > 0) {
-                baseName = altText.trim();
-            }
+function generateFilename(url: string, format: string, altText: string | null, pageTitle: string | null): string {
+    const cleanTitle = pageTitle ? cleanPageTitle(pageTitle) : '';
+    const cleanBasename = cleanUrlBasename(url);
+    
+    let descriptivePart = '';
+
+    if (altText) {
+        const trimmedAlt = altText.trim();
+        if (trimmedAlt.length > 3 && trimmedAlt.length < 60) {
+            descriptivePart = trimmedAlt;
         }
     }
 
-    // 3. Add page title as prefix if available
+    if (!descriptivePart) {
+        if (cleanBasename.length > 2) {
+            descriptivePart = cleanBasename;
+        }
+    }
+
     let finalName = '';
-    if (pageTitle) {
-        finalName = sanitizeFilename(pageTitle.trim()) + '_';
+    if (cleanTitle) {
+        finalName = sanitizeFilename(cleanTitle);
     }
 
-    if (baseName) {
-        finalName = finalName + sanitizeFilename(baseName);
-    } else {
-        finalName = finalName + 'image_' + new Date().getTime();
+    if (descriptivePart) {
+        if (finalName) {
+            finalName = finalName + '_';
+        }
+        finalName = finalName + sanitizeFilename(descriptivePart);
     }
 
-    // Limit length
-    if (finalName.length > 150) {
-        finalName = finalName.substring(0, 150);
+    if (!finalName) {
+        finalName = 'image_' + new Date().getTime();
+    }
+
+    if (finalName.length > 80) {
+        finalName = finalName.substring(0, 80);
+        finalName = finalName.replace(/_+$/, '');
     }
 
     return finalName + '.' + format;
 }
 
 async function processImageDownload(imageUrl: string, format: string, altText: string | null, pageTitle: string | null) {
-    await ensureOffscreenDocument();
-    const response = await chrome.runtime.sendMessage({
-        type: 'CONVERT_IMAGE',
-        target: 'offscreen',
-        data: { imageUrl: imageUrl, format: format }
-    });
+    activeOffscreenOperations = activeOffscreenOperations + 1;
+    try {
+        await ensureOffscreenDocument();
+        const response = await chrome.runtime.sendMessage({
+            type: 'CONVERT_IMAGE',
+            target: 'offscreen',
+            data: { imageUrl: imageUrl, format: format }
+        });
 
-    if (response) {
-        if (response.success) {
-            const filename = generateFilename(imageUrl, format, altText, pageTitle);
-            
-            await chrome.downloads.download({
-                url: response.data,
-                filename: filename,
-                saveAs: true
-            });
+        if (response) {
+            if (response.success) {
+                const filename = generateFilename(imageUrl, format, altText, pageTitle);
+                await chrome.downloads.download({
+                    url: response.data,
+                    filename: filename,
+                    saveAs: true
+                });
+            } else {
+                throw new Error(response.error || 'Conversion failed');
+            }
         } else {
-            throw new Error(response.error || 'Conversion failed');
+            throw new Error('No response from offscreen document');
         }
-    } else {
-        throw new Error('No response from offscreen document');
+    } finally {
+        activeOffscreenOperations = activeOffscreenOperations - 1;
+        scheduleOffscreenClosing();
     }
 }
 
-async function processImageCopy(imageUrl: string) {
-    await ensureOffscreenDocument();
-    const response = await chrome.runtime.sendMessage({
-        type: 'COPY_TO_CLIPBOARD',
-        target: 'offscreen',
-        data: { imageUrl: imageUrl }
-    });
+async function processImageCopy(imageUrl: string, tabId: number) {
+    activeOffscreenOperations = activeOffscreenOperations + 1;
+    try {
+        await ensureOffscreenDocument();
+        const response = await chrome.runtime.sendMessage({
+            type: 'CONVERT_IMAGE',
+            target: 'offscreen',
+            data: { imageUrl: imageUrl, format: 'png' }
+        });
 
-    if (response) {
-        if (!response.success) {
-            throw new Error(response.error || 'Clipboard copy failed');
+        if (response) {
+            if (response.success) {
+                const copyResponse = await chrome.tabs.sendMessage(tabId, { 
+                    type: 'WRITE_TO_CLIPBOARD', 
+                    dataUrl: response.data 
+                });
+                
+                if (copyResponse) {
+                    if (!copyResponse.success) {
+                        throw new Error(copyResponse.error || 'Content script failed to write to clipboard');
+                    }
+                } else {
+                    throw new Error('No response from content script for clipboard write');
+                }
+            } else {
+                throw new Error(response.error || 'Image conversion for clipboard failed');
+            }
+        } else {
+            throw new Error('No response from offscreen document');
         }
-    } else {
-        throw new Error('No response from offscreen document');
+    } finally {
+        activeOffscreenOperations = activeOffscreenOperations - 1;
+        scheduleOffscreenClosing();
     }
 }

@@ -6,11 +6,66 @@ document.addEventListener('contextmenu', (event) => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'GET_IMAGE_URL') {
-        const imageInfo = getImageUrlInfo(lastRightClickedElement);
-        sendResponse(imageInfo);
+        const result = getImageUrlInfoAndElement(lastRightClickedElement);
+        
+        if (result.element) {
+            highlightElement(result.element);
+        }
+        
+        sendResponse(result.info);
+        return true;
     }
+
+    if (message.type === 'WRITE_TO_CLIPBOARD') {
+        if (typeof message.dataUrl === 'string') {
+            if (message.dataUrl.startsWith('data:image/png')) {
+                writeToClipboard(message.dataUrl)
+                    .then(() => {
+                        sendResponse({ success: true });
+                    })
+                    .catch((error) => {
+                        console.error('Clipboard write failed in content script:', error);
+                        sendResponse({ success: false, error: error.message });
+                    });
+                return true;
+            }
+        }
+        sendResponse({ success: false, error: 'Invalid image data received.' });
+        return true;
+    }
+    
     return true;
 });
+
+function highlightElement(element: HTMLElement) {
+    const originalOutline = element.style.outline;
+    const originalOutlineOffset = element.style.outlineOffset;
+    const originalTransition = element.style.transition;
+
+    // Apply highlight
+    element.style.transition = 'outline 0.2s ease-in-out';
+    element.style.outline = '5px solid #4285f4';
+    element.style.outlineOffset = '-5px';
+    element.style.zIndex = '10000';
+
+    // Remove highlight after a short delay
+    setTimeout(() => {
+        element.style.outline = originalOutline;
+        element.style.outlineOffset = originalOutlineOffset;
+        
+        // Wait for transition to finish before restoring transition property
+        setTimeout(() => {
+            element.style.transition = originalTransition;
+        }, 200);
+    }, 800);
+}
+
+async function writeToClipboard(dataUrl: string): Promise<void> {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const data = [new ClipboardItem({ 'image/png': blob })];
+    await navigator.clipboard.write(data);
+}
 
 interface ImageInfo {
     imageUrl: string | null;
@@ -18,15 +73,25 @@ interface ImageInfo {
     pageTitle: string | null;
 }
 
-function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
+interface ExtractionResult {
+    info: ImageInfo;
+    element: HTMLElement | null;
+}
+
+function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResult {
     const info: ImageInfo = {
         imageUrl: null,
         altText: null,
         pageTitle: document.title
     };
 
+    const result: ExtractionResult = {
+        info: info,
+        element: null
+    };
+
     if (!element) {
-        return info;
+        return result;
     }
 
     const findInAttributes = (el: HTMLElement): string | null => {
@@ -69,20 +134,25 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
 
     // 1. Check if it's an <img> tag
     if (element instanceof HTMLImageElement) {
-        info.imageUrl = findInAttributes(element);
-        if (!info.imageUrl) {
+        const attrUrl = findInAttributes(element);
+        if (attrUrl) {
+            info.imageUrl = attrUrl;
+        } else {
             info.imageUrl = element.src;
         }
         info.altText = element.alt;
-        return info;
+        result.element = element;
+        return result;
     }
 
     // 2. Check if it's a <picture> tag or has a source
     const imgInside = element.querySelector('img');
     if (imgInside) {
         if (imgInside instanceof HTMLElement) {
-            info.imageUrl = findInAttributes(imgInside);
-            if (!info.imageUrl) {
+            const attrUrl = findInAttributes(imgInside);
+            if (attrUrl) {
+                info.imageUrl = attrUrl;
+            } else {
                 if (imgInside instanceof HTMLImageElement) {
                     info.imageUrl = imgInside.src;
                 }
@@ -90,9 +160,10 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
             if (imgInside instanceof HTMLImageElement) {
                 info.altText = imgInside.alt;
             }
-        }
-        if (info.imageUrl) {
-            return info;
+            result.element = imgInside;
+            if (info.imageUrl) {
+                return result;
+            }
         }
     }
 
@@ -106,7 +177,8 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
                 if (match[1]) {
                     info.imageUrl = match[1];
                     info.altText = getAlt(element);
-                    return info;
+                    result.element = element;
+                    return result;
                 }
             }
         }
@@ -123,8 +195,10 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
         const parentImg = parent.querySelector('img');
         if (parentImg) {
             if (parentImg instanceof HTMLElement) {
-                info.imageUrl = findInAttributes(parentImg);
-                if (!info.imageUrl) {
+                const attrUrl = findInAttributes(parentImg);
+                if (attrUrl) {
+                    info.imageUrl = attrUrl;
+                } else {
                     if (parentImg instanceof HTMLImageElement) {
                         info.imageUrl = parentImg.src;
                     }
@@ -132,9 +206,10 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
                 if (parentImg instanceof HTMLImageElement) {
                     info.altText = parentImg.alt;
                 }
-            }
-            if (info.imageUrl) {
-                return info;
+                result.element = parentImg;
+                if (info.imageUrl) {
+                    return result;
+                }
             }
         }
 
@@ -147,7 +222,8 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
                     if (match[1]) {
                         info.imageUrl = match[1];
                         info.altText = getAlt(parent);
-                        return info;
+                        result.element = parent;
+                        return result;
                     }
                 }
             }
@@ -156,5 +232,5 @@ function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
         depth = depth + 1;
     }
 
-    return info;
+    return result;
 }

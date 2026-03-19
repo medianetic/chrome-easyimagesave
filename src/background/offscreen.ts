@@ -2,10 +2,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.target === 'offscreen') {
         if (message.type === 'CONVERT_IMAGE') {
             convertImage(message.data.imageUrl, message.data.format)
-                .then(result => {
+                .then((result) => {
                     sendResponse({ success: true, data: result });
                 })
-                .catch(error => {
+                .catch((error) => {
                     console.error('Conversion error:', error);
                     sendResponse({ success: false, error: error.message });
                 });
@@ -17,7 +17,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 .then(() => {
                     sendResponse({ success: true });
                 })
-                .catch(error => {
+                .catch((error) => {
                     console.error('Clipboard error:', error);
                     sendResponse({ success: false, error: error.message });
                 });
@@ -26,7 +26,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 });
 
+function isValidUrl(urlString: string): boolean {
+    try {
+        const url = new URL(urlString);
+        if (url.protocol === 'http:') {
+            return true;
+        }
+        if (url.protocol === 'https:') {
+            return true;
+        }
+        if (url.protocol === 'data:') {
+            return true;
+        }
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
+
 async function convertImage(url: string, format: string): Promise<string> {
+    if (!isValidUrl(url)) {
+        throw new Error('Invalid or unsupported image URL protocol.');
+    }
+
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error('Failed to fetch image: ' + response.statusText);
@@ -40,6 +62,7 @@ async function convertImage(url: string, format: string): Promise<string> {
     canvas.height = bitmap.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
+        bitmap.close(); // Clean up memory
         throw new Error('Could not get canvas context');
     }
     
@@ -52,10 +75,21 @@ async function convertImage(url: string, format: string): Promise<string> {
         mimeType = 'image/' + format;
     }
     
-    return canvas.toDataURL(mimeType);
+    const dataUrl = canvas.toDataURL(mimeType);
+    
+    // Explicit Cleanup
+    bitmap.close();
+    canvas.width = 0;
+    canvas.height = 0;
+    
+    return dataUrl;
 }
 
 async function copyImageToClipboard(url: string): Promise<void> {
+    if (!isValidUrl(url)) {
+        throw new Error('Invalid or unsupported image URL protocol.');
+    }
+
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error('Failed to fetch image: ' + response.statusText);
@@ -69,21 +103,30 @@ async function copyImageToClipboard(url: string): Promise<void> {
     canvas.height = bitmap.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
+        bitmap.close(); // Clean up memory
         throw new Error('Could not get canvas context');
     }
     
     ctx.drawImage(bitmap, 0, 0);
     
     return new Promise((resolve, reject) => {
-        canvas.toBlob(async (blob) => {
-            if (!blob) {
+        canvas.toBlob(async (resultBlob) => {
+            // Cleanup bitmap immediately after drawing
+            bitmap.close();
+
+            if (!resultBlob) {
                 reject(new Error('Failed to create blob from canvas'));
                 return;
             }
             
             try {
-                const data = [new ClipboardItem({ 'image/png': blob })];
+                const data = [new ClipboardItem({ 'image/png': resultBlob })];
                 await navigator.clipboard.write(data);
+                
+                // Cleanup canvas
+                canvas.width = 0;
+                canvas.height = 0;
+                
                 resolve();
             } catch (err: any) {
                 reject(err);
