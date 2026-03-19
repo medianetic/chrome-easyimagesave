@@ -25,67 +25,86 @@ chrome.runtime.onInstalled.addListener(() => {
         title: 'Save as WEBP',
         contexts: ['image', 'all']
     });
+
+    chrome.contextMenus.create({
+        id: 'copy-to-clipboard',
+        parentId: 'easy-image-save',
+        title: 'Copy to Clipboard',
+        contexts: ['image', 'all']
+    });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const menuItemId = info.menuItemId;
     if (typeof menuItemId === 'string') {
-        if (menuItemId.startsWith('save-')) {
-            const menuItemParts = menuItemId.split('-');
-            const format = menuItemParts[1];
-            let imageUrl = info.srcUrl;
+        let imageUrl = info.srcUrl;
 
-            console.log('Context menu clicked. Format: ' + format + ', info.srcUrl: ' + imageUrl);
-
-            // If no srcUrl, try to get it from content script
-            if (!imageUrl) {
-                if (tab) {
-                    if (tab.id) {
-                        try {
-                            const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_IMAGE_URL' });
-                            if (response) {
-                                if (response.imageUrl) {
-                                    imageUrl = response.imageUrl;
-                                }
+        // If no srcUrl, try to get it from content script
+        if (!imageUrl) {
+            if (tab) {
+                if (tab.id) {
+                    try {
+                        const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_IMAGE_URL' });
+                        if (response) {
+                            if (response.imageUrl) {
+                                imageUrl = response.imageUrl;
                             }
-                            console.log('Fetched imageUrl from content script: ' + imageUrl);
-                        } catch (e) {
-                            console.error('Error getting image URL from content script:', e);
                         }
+                    } catch (e) {
+                        console.error('Error getting image URL from content script:', e);
                     }
                 }
             }
+        }
 
-            if (imageUrl) {
-                try {
-                    await processImageDownload(imageUrl, format);
-                } catch (error: any) {
-                    console.error('Error processing image:', error);
-                    
-                    let errorMessage = 'Error processing image';
-                    if (error.message) {
-                        errorMessage = error.message;
-                    }
-                    
-                    chrome.notifications.create({
-                        type: 'basic',
-                        iconUrl: 'icon-48.png',
-                        title: 'Save Failed',
-                        message: errorMessage
-                    });
-                }
-            } else {
-                console.error('No image found at click location');
+        if (!imageUrl) {
+            console.error('No image found at click location');
+            chrome.notifications.create({
+                type: 'basic',
+                iconUrl: 'icon-48.png',
+                title: 'Operation Failed',
+                message: 'No image found at this location.'
+            });
+            return;
+        }
+
+        if (menuItemId.startsWith('save-')) {
+            const menuItemParts = menuItemId.split('-');
+            const format = menuItemParts[1];
+            try {
+                await processImageDownload(imageUrl, format);
+            } catch (error: any) {
+                handleError(error);
+            }
+        } else if (menuItemId === 'copy-to-clipboard') {
+            try {
+                await processImageCopy(imageUrl);
                 chrome.notifications.create({
                     type: 'basic',
                     iconUrl: 'icon-48.png',
-                    title: 'Save Failed',
-                    message: 'No image found at this location.'
+                    title: 'Copied!',
+                    message: 'Image copied to clipboard as PNG.'
                 });
+            } catch (error: any) {
+                handleError(error);
             }
         }
     }
 });
+
+function handleError(error: any) {
+    console.error('Error:', error);
+    let errorMessage = 'An error occurred';
+    if (error.message) {
+        errorMessage = error.message;
+    }
+    chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icon-48.png',
+        title: 'Operation Failed',
+        message: errorMessage
+    });
+}
 
 async function ensureOffscreenDocument() {
     if (await chrome.offscreen.hasDocument()) {
@@ -100,9 +119,8 @@ async function ensureOffscreenDocument() {
             await chrome.offscreen.createDocument({
                 url: offscreenPath,
                 reasons: [reason as chrome.offscreen.Reason],
-                justification: 'Image format conversion'
+                justification: 'Image format conversion and clipboard access'
             });
-            console.log('Offscreen document created successfully with reason: ' + reason);
             return;
         } catch (e: any) {
             if (e.message) {
@@ -110,52 +128,49 @@ async function ensureOffscreenDocument() {
                     return;
                 }
             }
-            console.warn('Failed to create offscreen document with reason ' + reason + ': ' + e.message);
-            // Try next reason
         }
     }
-    throw new Error('Failed to create offscreen document with any supported reason.');
+    throw new Error('Failed to create offscreen document.');
 }
 
 async function processImageDownload(imageUrl: string, format: string) {
-    console.log('Starting download process for ' + imageUrl + '.');
-
-    // 1. Ensure offscreen document exists with fallback logic
     await ensureOffscreenDocument();
+    const response = await chrome.runtime.sendMessage({
+        type: 'CONVERT_IMAGE',
+        target: 'offscreen',
+        data: { imageUrl: imageUrl, format: format }
+    });
 
-    // 2. Send message to offscreen document to convert image
-    try {
-        const response = await chrome.runtime.sendMessage({
-            type: 'CONVERT_IMAGE',
-            target: 'offscreen',
-            data: { imageUrl: imageUrl, format: format }
-        });
-
-        if (response) {
-            if (response.success) {
-                // 3. Trigger download
-                const timestamp = new Date().getTime();
-                const filename = 'image-' + timestamp + '.' + format;
-                
-                console.log('Conversion successful. Triggering download for ' + filename);
-                
-                await chrome.downloads.download({
-                    url: response.data,
-                    filename: filename,
-                    saveAs: true
-                });
-            } else {
-                let errorDetails = 'Unknown error in offscreen document';
-                if (response.error) {
-                    errorDetails = response.error;
-                }
-                throw new Error(errorDetails);
-            }
+    if (response) {
+        if (response.success) {
+            const timestamp = new Date().getTime();
+            const filename = 'image-' + timestamp + '.' + format;
+            await chrome.downloads.download({
+                url: response.data,
+                filename: filename,
+                saveAs: true
+            });
         } else {
-            throw new Error('No response from offscreen document');
+            throw new Error(response.error || 'Conversion failed');
         }
-    } catch (e: any) {
-        console.error('Error communicating with offscreen document:', e);
-        throw new Error('Failed to convert image: ' + e.message);
+    } else {
+        throw new Error('No response from offscreen document');
+    }
+}
+
+async function processImageCopy(imageUrl: string) {
+    await ensureOffscreenDocument();
+    const response = await chrome.runtime.sendMessage({
+        type: 'COPY_TO_CLIPBOARD',
+        target: 'offscreen',
+        data: { imageUrl: imageUrl }
+    });
+
+    if (response) {
+        if (!response.success) {
+            throw new Error(response.error || 'Clipboard copy failed');
+        }
+    } else {
+        throw new Error('No response from offscreen document');
     }
 }
