@@ -1,1 +1,0 @@
-import"./modulepreload-polyfill-BnkOoLKg.js";console.log(`Popup loaded`);
