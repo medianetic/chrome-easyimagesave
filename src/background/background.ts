@@ -34,25 +34,33 @@ chrome.runtime.onInstalled.addListener(() => {
     });
 });
 
+interface ImageMetadata {
+    imageUrl: string | null;
+    altText: string | null;
+    pageTitle: string | null;
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const menuItemId = info.menuItemId;
     if (typeof menuItemId === 'string') {
         let imageUrl = info.srcUrl;
+        let altText: string | null = null;
+        let pageTitle: string | null = null;
 
-        // If no srcUrl, try to get it from content script
-        if (!imageUrl) {
-            if (tab) {
-                if (tab.id) {
-                    try {
-                        const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_IMAGE_URL' });
-                        if (response) {
-                            if (response.imageUrl) {
-                                imageUrl = response.imageUrl;
-                            }
+        // Try to get metadata from content script
+        if (tab) {
+            if (tab.id) {
+                try {
+                    const response: ImageMetadata = await chrome.tabs.sendMessage(tab.id, { type: 'GET_IMAGE_URL' });
+                    if (response) {
+                        if (response.imageUrl) {
+                            imageUrl = response.imageUrl;
                         }
-                    } catch (e) {
-                        console.error('Error getting image URL from content script:', e);
+                        altText = response.altText;
+                        pageTitle = response.pageTitle;
                     }
+                } catch (e) {
+                    console.error('Error getting image metadata from content script:', e);
                 }
             }
         }
@@ -72,7 +80,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
             const menuItemParts = menuItemId.split('-');
             const format = menuItemParts[1];
             try {
-                await processImageDownload(imageUrl, format);
+                await processImageDownload(imageUrl, format, altText, pageTitle);
             } catch (error: any) {
                 handleError(error);
             }
@@ -133,7 +141,60 @@ async function ensureOffscreenDocument() {
     throw new Error('Failed to create offscreen document.');
 }
 
-async function processImageDownload(imageUrl: string, format: string) {
+function sanitizeFilename(name: string): string {
+    return name.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+}
+
+function generateFilename(url: string, format: string, altText: string | null, pageTitle: string | null): string {
+    let baseName = '';
+
+    // 1. Try to get filename from URL
+    try {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/');
+        const lastPart = pathParts[pathParts.length - 1];
+        if (lastPart) {
+            const dotIndex = lastPart.lastIndexOf('.');
+            if (dotIndex > 0) {
+                baseName = lastPart.substring(0, dotIndex);
+            } else {
+                baseName = lastPart;
+            }
+        }
+    } catch (e) {
+        // Ignore URL parsing errors
+    }
+
+    // 2. Fallback to alt text if URL basename is empty or too short
+    if (baseName.length < 3) {
+        if (altText) {
+            if (altText.trim().length > 0) {
+                baseName = altText.trim();
+            }
+        }
+    }
+
+    // 3. Add page title as prefix if available
+    let finalName = '';
+    if (pageTitle) {
+        finalName = sanitizeFilename(pageTitle.trim()) + '_';
+    }
+
+    if (baseName) {
+        finalName = finalName + sanitizeFilename(baseName);
+    } else {
+        finalName = finalName + 'image_' + new Date().getTime();
+    }
+
+    // Limit length
+    if (finalName.length > 150) {
+        finalName = finalName.substring(0, 150);
+    }
+
+    return finalName + '.' + format;
+}
+
+async function processImageDownload(imageUrl: string, format: string, altText: string | null, pageTitle: string | null) {
     await ensureOffscreenDocument();
     const response = await chrome.runtime.sendMessage({
         type: 'CONVERT_IMAGE',
@@ -143,8 +204,8 @@ async function processImageDownload(imageUrl: string, format: string) {
 
     if (response) {
         if (response.success) {
-            const timestamp = new Date().getTime();
-            const filename = 'image-' + timestamp + '.' + format;
+            const filename = generateFilename(imageUrl, format, altText, pageTitle);
+            
             await chrome.downloads.download({
                 url: response.data,
                 filename: filename,

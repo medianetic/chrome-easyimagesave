@@ -6,15 +6,27 @@ document.addEventListener('contextmenu', (event) => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'GET_IMAGE_URL') {
-        const imageUrl = getImageUrl(lastRightClickedElement);
-        sendResponse({ imageUrl: imageUrl });
+        const imageInfo = getImageUrlInfo(lastRightClickedElement);
+        sendResponse(imageInfo);
     }
     return true;
 });
 
-function getImageUrl(element: HTMLElement | null): string | null {
+interface ImageInfo {
+    imageUrl: string | null;
+    altText: string | null;
+    pageTitle: string | null;
+}
+
+function getImageUrlInfo(element: HTMLElement | null): ImageInfo {
+    const info: ImageInfo = {
+        imageUrl: null,
+        altText: null,
+        pageTitle: document.title
+    };
+
     if (!element) {
-        return null;
+        return info;
     }
 
     const findInAttributes = (el: HTMLElement): string | null => {
@@ -44,26 +56,43 @@ function getImageUrl(element: HTMLElement | null): string | null {
         return null;
     };
 
+    const getAlt = (el: HTMLElement): string | null => {
+        if (el instanceof HTMLImageElement) {
+            return el.alt;
+        }
+        const imgInside = el.querySelector('img');
+        if (imgInside) {
+            return imgInside.alt;
+        }
+        return null;
+    };
+
     // 1. Check if it's an <img> tag
     if (element instanceof HTMLImageElement) {
-        const attrUrl = findInAttributes(element);
-        if (attrUrl) {
-            return attrUrl;
+        info.imageUrl = findInAttributes(element);
+        if (!info.imageUrl) {
+            info.imageUrl = element.src;
         }
-        return element.src;
+        info.altText = element.alt;
+        return info;
     }
 
     // 2. Check if it's a <picture> tag or has a source
     const imgInside = element.querySelector('img');
     if (imgInside) {
         if (imgInside instanceof HTMLElement) {
-            const attrUrl = findInAttributes(imgInside);
-            if (attrUrl) {
-                return attrUrl;
+            info.imageUrl = findInAttributes(imgInside);
+            if (!info.imageUrl) {
+                if (imgInside instanceof HTMLImageElement) {
+                    info.imageUrl = imgInside.src;
+                }
             }
             if (imgInside instanceof HTMLImageElement) {
-                return imgInside.src;
+                info.altText = imgInside.alt;
             }
+        }
+        if (info.imageUrl) {
+            return info;
         }
     }
 
@@ -75,7 +104,9 @@ function getImageUrl(element: HTMLElement | null): string | null {
             const match = backgroundImage.match(/url\(['"]?(.*?)['"]?\)/);
             if (match) {
                 if (match[1]) {
-                    return match[1];
+                    info.imageUrl = match[1];
+                    info.altText = getAlt(element);
+                    return info;
                 }
             }
         }
@@ -92,13 +123,18 @@ function getImageUrl(element: HTMLElement | null): string | null {
         const parentImg = parent.querySelector('img');
         if (parentImg) {
             if (parentImg instanceof HTMLElement) {
-                const attrUrl = findInAttributes(parentImg);
-                if (attrUrl) {
-                    return attrUrl;
+                info.imageUrl = findInAttributes(parentImg);
+                if (!info.imageUrl) {
+                    if (parentImg instanceof HTMLImageElement) {
+                        info.imageUrl = parentImg.src;
+                    }
                 }
                 if (parentImg instanceof HTMLImageElement) {
-                    return parentImg.src;
+                    info.altText = parentImg.alt;
                 }
+            }
+            if (info.imageUrl) {
+                return info;
             }
         }
 
@@ -109,7 +145,9 @@ function getImageUrl(element: HTMLElement | null): string | null {
                 const match = parentBg.match(/url\(['"]?(.*?)['"]?\)/);
                 if (match) {
                     if (match[1]) {
-                        return match[1];
+                        info.imageUrl = match[1];
+                        info.altText = getAlt(parent);
+                        return info;
                     }
                 }
             }
@@ -118,5 +156,5 @@ function getImageUrl(element: HTMLElement | null): string | null {
         depth = depth + 1;
     }
 
-    return null;
+    return info;
 }
