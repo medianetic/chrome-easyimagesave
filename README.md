@@ -49,6 +49,9 @@ Since this extension is in development, you can load it manually in Chrome:
 -   `npm run build`: Create a production-ready build in the `dist/` directory.
 -   `npm run preview`: Preview the production build locally.
 
+## Autor
+* **Nick Weschkalnies** - [@medianetic](https://github.com/medianetic) - <nick@weschkalnies.de>
+
 ## ⚖️ License
 
 Distributed under the ISC License. See `LICENSE` for more information.
