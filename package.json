@@ -1,0 +1,21 @@
+{
+  "name": "easyimagesave",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@types/chrome": "^0.1.38",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.1",
+    "vite-plugin-static-copy": "^3.3.0"
+  }
+}
