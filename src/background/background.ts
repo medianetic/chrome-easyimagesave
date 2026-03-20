@@ -72,7 +72,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
             console.error('No image found at click location');
             chrome.notifications.create({
                 type: 'basic',
-                iconUrl: 'icon-48.png',
+                iconUrl: 'easeimagesave-icon-48.png',
                 title: 'Operation Failed',
                 message: 'No image found at this location.'
             });
@@ -94,7 +94,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
                         await processImageCopy(imageUrl, tab.id);
                         chrome.notifications.create({
                             type: 'basic',
-                            iconUrl: 'icon-48.png',
+                            iconUrl: 'easeimagesave-icon-48.png',
                             title: 'Copied!',
                             message: 'Image copied to clipboard as PNG.'
                         });
@@ -121,7 +121,7 @@ function handleError(error: any) {
 
     chrome.notifications.create({
         type: 'basic',
-        iconUrl: 'icon-48.png',
+        iconUrl: 'easeimagesave-icon-48.png',
         title: 'Operation Failed',
         message: errorMessage
     });

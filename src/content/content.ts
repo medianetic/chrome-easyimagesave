@@ -132,11 +132,20 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
         return null;
     };
 
+    const makeAbsolute = (url: string | null): string | null => {
+        if (!url) return null;
+        try {
+            return new URL(url, document.baseURI).href;
+        } catch (e) {
+            return url;
+        }
+    };
+
     // 1. Check if it's an <img> tag
     if (element instanceof HTMLImageElement) {
         const attrUrl = findInAttributes(element);
         if (attrUrl) {
-            info.imageUrl = attrUrl;
+            info.imageUrl = makeAbsolute(attrUrl);
         } else {
             info.imageUrl = element.src;
         }
@@ -151,7 +160,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
         if (imgInside instanceof HTMLElement) {
             const attrUrl = findInAttributes(imgInside);
             if (attrUrl) {
-                info.imageUrl = attrUrl;
+                info.imageUrl = makeAbsolute(attrUrl);
             } else {
                 if (imgInside instanceof HTMLImageElement) {
                     info.imageUrl = imgInside.src;
@@ -175,7 +184,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
             const match = backgroundImage.match(/url\(['"]?(.*?)['"]?\)/);
             if (match) {
                 if (match[1]) {
-                    info.imageUrl = match[1];
+                    info.imageUrl = makeAbsolute(match[1]);
                     info.altText = getAlt(element);
                     result.element = element;
                     return result;
@@ -197,7 +206,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
             if (parentImg instanceof HTMLElement) {
                 const attrUrl = findInAttributes(parentImg);
                 if (attrUrl) {
-                    info.imageUrl = attrUrl;
+                    info.imageUrl = makeAbsolute(attrUrl);
                 } else {
                     if (parentImg instanceof HTMLImageElement) {
                         info.imageUrl = parentImg.src;
@@ -220,7 +229,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
                 const match = parentBg.match(/url\(['"]?(.*?)['"]?\)/);
                 if (match) {
                     if (match[1]) {
-                        info.imageUrl = match[1];
+                        info.imageUrl = makeAbsolute(match[1]);
                         info.altText = getAlt(parent);
                         result.element = parent;
                         return result;
