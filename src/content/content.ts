@@ -70,6 +70,7 @@ async function writeToClipboard(dataUrl: string): Promise<void> {
 interface ImageInfo {
     imageUrl: string | null;
     altText: string | null;
+    titleAttr: string | null;
     pageTitle: string | null;
 }
 
@@ -82,6 +83,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
     const info: ImageInfo = {
         imageUrl: null,
         altText: null,
+        titleAttr: null,
         pageTitle: document.title
     };
 
@@ -132,6 +134,16 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
         return null;
     };
 
+    const getTitleAttr = (el: HTMLElement): string | null => {
+        const title = el.getAttribute('title');
+        if (title) return title;
+        const imgInside = el.querySelector('img');
+        if (imgInside) {
+            return imgInside.getAttribute('title');
+        }
+        return null;
+    };
+
     const makeAbsolute = (url: string | null): string | null => {
         if (!url) return null;
         try {
@@ -150,6 +162,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
             info.imageUrl = element.src;
         }
         info.altText = element.alt;
+        info.titleAttr = element.getAttribute('title');
         result.element = element;
         return result;
     }
@@ -168,6 +181,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
             }
             if (imgInside instanceof HTMLImageElement) {
                 info.altText = imgInside.alt;
+                info.titleAttr = imgInside.getAttribute('title');
             }
             result.element = imgInside;
             if (info.imageUrl) {
@@ -186,6 +200,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
                 if (match[1]) {
                     info.imageUrl = makeAbsolute(match[1]);
                     info.altText = getAlt(element);
+                    info.titleAttr = getTitleAttr(element);
                     result.element = element;
                     return result;
                 }
@@ -214,6 +229,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
                 }
                 if (parentImg instanceof HTMLImageElement) {
                     info.altText = parentImg.alt;
+                    info.titleAttr = parentImg.getAttribute('title');
                 }
                 result.element = parentImg;
                 if (info.imageUrl) {
@@ -231,6 +247,7 @@ function getImageUrlInfoAndElement(element: HTMLElement | null): ExtractionResul
                     if (match[1]) {
                         info.imageUrl = makeAbsolute(match[1]);
                         info.altText = getAlt(parent);
+                        info.titleAttr = getTitleAttr(parent);
                         result.element = parent;
                         return result;
                     }

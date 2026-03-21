@@ -9,12 +9,14 @@
       "activeTab",
       "offscreen",
       "notifications",
-      "clipboardWrite"
+      "clipboardWrite",
+      "storage"
   ],
 
   "host_permissions": [
     "<all_urls>"
   ],
+  "options_page": "src/options/options.html",
   "background": {
     "service_worker": "src/background/background.ts",
     "type": "module"

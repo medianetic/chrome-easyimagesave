@@ -1,15 +1,23 @@
 # EasyImageSave
 
-**EasyImageSave** is a powerful Chrome extension (Manifest V3) that makes saving and converting images from any website effortless. It is specifically designed to handle complex web elements like image sliders, galleries, and CSS background images that often block standard browser "Save Image As" options.
+**EasyImageSave** is a Chrome extension (Manifest V3) that makes saving and converting images from any website effortless. It is specifically designed to handle complex web elements like image sliders, galleries, and CSS background images that often block standard browser "Save Image As" options.
 
 ## 🚀 Key Features
 
 -   **Multi-Format Saving:** Save any image directly as **JPG**, **PNG**, or **WEBP** via a right-click context menu.
+-   **Customizable Filename Patterns:** Define your own naming convention using placeholders like `{title}`, `{hostname}`, `{date}`, `{alt}`, and `{title_attr}` in the extension settings.
+-   **Automatic Iteration:** Intelligent collision handling. If you save multiple images with the same metadata, they are automatically numbered (e.g., `-01`, `-02`).
 -   **Copy to Clipboard:** Convert and copy images directly to your clipboard for instant pasting into apps like Slack, Discord, or Word.
 -   **Slider & Gallery Support:** Deep-search logic extracts images from deep within slider structures, even when they are not directly targetable.
 -   **CSS Background Support:** Easily save images used as CSS background-images.
 -   **Native Conversion:** Performs all conversions locally using the native Canvas API—no external libraries or cloud processing required.
 -   **Privacy-Focused:** No data ever leaves your browser.
+
+## 🕒 Recent Updates
+
+-   **2024-03-21:** Implemented **Settings Page** with customizable filename patterns and a live preview.
+-   **2024-03-21:** Added **Playwright E2E Tests** for automated verification of image conversion and saving logic.
+-   **2024-03-21:** Improved filename sanitization and metadata extraction.
 
 ## 🛠️ Tech Stack
 

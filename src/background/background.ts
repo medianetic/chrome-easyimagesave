@@ -40,6 +40,7 @@ chrome.runtime.onInstalled.addListener(() => {
 interface ImageMetadata {
     imageUrl: string | null;
     altText: string | null;
+    titleAttr: string | null;
     pageTitle: string | null;
 }
 
@@ -48,6 +49,7 @@ export async function handleContextMenuClick(info: chrome.contextMenus.OnClickDa
     if (typeof menuItemId === 'string') {
         let imageUrl = info.srcUrl;
         let altText: string | null = null;
+        let titleAttr: string | null = null;
         let pageTitle: string | null = null;
 
         // Try to get metadata from content script
@@ -60,6 +62,7 @@ export async function handleContextMenuClick(info: chrome.contextMenus.OnClickDa
                             imageUrl = response.imageUrl;
                         }
                         altText = response.altText;
+                        titleAttr = response.titleAttr;
                         pageTitle = response.pageTitle;
                     }
                 } catch (e) {
@@ -83,7 +86,7 @@ export async function handleContextMenuClick(info: chrome.contextMenus.OnClickDa
             const menuItemParts = menuItemId.split('-');
             const format = menuItemParts[1];
             try {
-                await processImageDownload(imageUrl, format, altText, pageTitle);
+                await processImageDownload(imageUrl, format, altText, titleAttr, pageTitle);
             } catch (error: any) {
                 handleError(error);
             }
@@ -242,50 +245,108 @@ function cleanUrlBasename(url: string): string {
     }
 }
 
-function generateFilename(url: string, format: string, altText: string | null, pageTitle: string | null): string {
-    const cleanTitle = pageTitle ? cleanPageTitle(pageTitle) : '';
-    const cleanBasename = cleanUrlBasename(url);
+// Track filenames used in the current session to handle simultaneous downloads
+const sessionFilenameCounter: Record<string, number> = {};
+
+async function generateFilename(imageUrl: string, format: string, altText: string | null, titleAttr: string | null, pageTitle: string | null): Promise<string> {
+    const items = await chrome.storage.sync.get({ 
+        filenamePattern: '{hostname}_{title}_{alt}_{date}.{ext}' 
+    });
+    let pattern = items.filenamePattern;
+
+    // Prepare metadata
+    const url = new URL(imageUrl);
+    const hostname = url.hostname;
     
-    let descriptivePart = '';
+    // Extract original filename
+    const cleanBasename = cleanUrlBasename(imageUrl);
 
-    if (altText) {
-        const trimmedAlt = altText.trim();
-        if (trimmedAlt.length > 3 && trimmedAlt.length < 60) {
-            descriptivePart = trimmedAlt;
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+
+    const cleanTitle = pageTitle ? sanitizeFilename(cleanPageTitle(pageTitle)) : '';
+    const cleanAlt = altText ? sanitizeFilename(altText.trim()) : '';
+    const cleanTitleAttr = titleAttr ? sanitizeFilename(titleAttr.trim()) : '';
+    const cleanOrig = sanitizeFilename(cleanBasename);
+
+    const replacements: Record<string, string> = {
+        'title': cleanTitle,
+        'alt': cleanAlt,
+        'title_attr': cleanTitleAttr,
+        'filename': cleanOrig,
+        'hostname': hostname,
+        'date': dateStr,
+        'time': timeStr,
+        'ext': format
+    };
+
+    let filename = pattern;
+    Object.entries(replacements).forEach(([key, value]) => {
+        const regex = new RegExp(`\\{${key}\\}`, 'g');
+        filename = filename.replace(regex, value);
+    });
+
+    // Post-processing
+    // 1. Flatten all slashes to underscores
+    filename = filename.replace(/\/+/g, '_');
+
+    // Separate name and extension if they are at the end
+    let nameWithoutExt = filename;
+    if (nameWithoutExt.toLowerCase().endsWith('.' + format.toLowerCase())) {
+        nameWithoutExt = nameWithoutExt.substring(0, nameWithoutExt.length - (format.length + 1));
+    }
+
+    // 2. Replace multiple underscores/hyphens with single ones
+    // 3. Remove leading/trailing underscores/hyphens
+    nameWithoutExt = nameWithoutExt
+        .replace(/^[-_]+|[-_]+$/g, '')
+        .replace(/[-_]{2,}/g, '_');
+    
+    if (!nameWithoutExt || nameWithoutExt === '') {
+        nameWithoutExt = 'image_' + now.getTime();
+    }
+
+    // Limit length of filename component (keeping some room for the suffix)
+    if (nameWithoutExt.length > 120) {
+        nameWithoutExt = nameWithoutExt.substring(0, 120).replace(/_+$/, '');
+    }
+
+    // Handle iteration for multiple images from the same page
+    const baseKey = `${hostname}_${nameWithoutExt}`;
+    if (!sessionFilenameCounter[baseKey]) {
+        sessionFilenameCounter[baseKey] = 0;
+    }
+    
+    let finalFilename = '';
+    let iteration = sessionFilenameCounter[baseKey];
+    
+    // Check download history to see if we should start higher than our session counter
+    try {
+        const existing = await chrome.downloads.search({
+            filenameRegex: `${nameWithoutExt}.*\\.${format}`
+        });
+        if (existing.length > iteration) {
+            iteration = existing.length;
         }
+    } catch (e) {
+        // Fallback to session counter if search fails
     }
 
-    if (!descriptivePart) {
-        if (cleanBasename.length > 2) {
-            descriptivePart = cleanBasename;
-        }
+    if (iteration > 0) {
+        const suffix = '-' + (iteration + 1).toString().padStart(2, '0');
+        finalFilename = `${nameWithoutExt}${suffix}.${format}`;
+    } else {
+        finalFilename = `${nameWithoutExt}.${format}`;
     }
 
-    let finalName = '';
-    if (cleanTitle) {
-        finalName = sanitizeFilename(cleanTitle);
-    }
+    // Increment for next call in this session
+    sessionFilenameCounter[baseKey] = iteration + 1;
 
-    if (descriptivePart) {
-        if (finalName) {
-            finalName = finalName + '_';
-        }
-        finalName = finalName + sanitizeFilename(descriptivePart);
-    }
-
-    if (!finalName) {
-        finalName = 'image_' + new Date().getTime();
-    }
-
-    if (finalName.length > 80) {
-        finalName = finalName.substring(0, 80);
-        finalName = finalName.replace(/_+$/, '');
-    }
-
-    return 'saved_images/' + finalName + '.' + format;
+    return finalFilename;
 }
 
-async function processImageDownload(imageUrl: string, format: string, altText: string | null, pageTitle: string | null) {
+async function processImageDownload(imageUrl: string, format: string, altText: string | null, titleAttr: string | null, pageTitle: string | null) {
     console.log(`processImageDownload started: ${imageUrl} (${format})`);
     activeOffscreenOperations = activeOffscreenOperations + 1;
     try {
@@ -301,7 +362,7 @@ async function processImageDownload(imageUrl: string, format: string, altText: s
 
         if (response) {
             if (response.success) {
-                const filename = generateFilename(imageUrl, format, altText, pageTitle);
+                const filename = await generateFilename(imageUrl, format, altText, titleAttr, pageTitle);
                 console.log(`Triggering download with filename: ${filename}`);
                 await chrome.downloads.download({
                     url: response.data,
