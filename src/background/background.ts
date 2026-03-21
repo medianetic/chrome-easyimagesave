@@ -43,7 +43,7 @@ interface ImageMetadata {
     pageTitle: string | null;
 }
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+export async function handleContextMenuClick(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) {
     const menuItemId = info.menuItemId;
     if (typeof menuItemId === 'string') {
         let imageUrl = info.srcUrl;
@@ -105,7 +105,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
             }
         }
     }
-});
+}
+
+chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
+
+// Expose for Playwright testing
+if (typeof self !== 'undefined') {
+    (self as any).__test_handleContextMenuClick = handleContextMenuClick;
+}
 
 function handleError(error: any) {
     console.error('Error:', error);
@@ -275,33 +282,43 @@ function generateFilename(url: string, format: string, altText: string | null, p
         finalName = finalName.replace(/_+$/, '');
     }
 
-    return finalName + '.' + format;
+    return 'saved_images/' + finalName + '.' + format;
 }
 
 async function processImageDownload(imageUrl: string, format: string, altText: string | null, pageTitle: string | null) {
+    console.log(`processImageDownload started: ${imageUrl} (${format})`);
     activeOffscreenOperations = activeOffscreenOperations + 1;
     try {
+        console.log('Ensuring offscreen document...');
         await ensureOffscreenDocument();
+        console.log('Offscreen document ensured. Sending CONVERT_IMAGE message...');
         const response = await chrome.runtime.sendMessage({
             type: 'CONVERT_IMAGE',
             target: 'offscreen',
             data: { imageUrl: imageUrl, format: format }
         });
+        console.log('Received response from offscreen:', response ? 'yes' : 'no');
 
         if (response) {
             if (response.success) {
                 const filename = generateFilename(imageUrl, format, altText, pageTitle);
+                console.log(`Triggering download with filename: ${filename}`);
                 await chrome.downloads.download({
                     url: response.data,
                     filename: filename,
                     saveAs: true
                 });
             } else {
+                console.error('Conversion failed in offscreen document:', response.error);
                 throw new Error(response.error || 'Conversion failed');
             }
         } else {
+            console.error('No response from offscreen document');
             throw new Error('No response from offscreen document');
         }
+    } catch (e) {
+        console.error('Error in processImageDownload:', e);
+        throw e;
     } finally {
         activeOffscreenOperations = activeOffscreenOperations - 1;
         scheduleOffscreenClosing();

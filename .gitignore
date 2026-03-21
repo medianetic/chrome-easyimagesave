@@ -7,6 +7,7 @@ dist/
 # User-requested ignores
 specs/
 GEMINI.md
+.gemini/
 
 # Environment variables and secrets
 .env
@@ -32,3 +33,9 @@ pnpm-debug.log*
 # OS files
 Thumbs.db
 desktop.ini
+
+# Playwright - Nur temporäre Artefakte ignorieren
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
