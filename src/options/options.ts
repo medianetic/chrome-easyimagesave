@@ -1,3 +1,5 @@
+import { sanitizeFilename } from '../utils/filename';
+
 const DEFAULT_PATTERN = '{hostname}_{title}_{alt}_{date}.{ext}';
 
 const patternInput = document.getElementById('pattern') as HTMLInputElement;
@@ -26,7 +28,8 @@ function updatePreview() {
         preview = preview.replace(regex, value);
     });
 
-    // Clean up all slashes to make it flat
+    // Use shared sanitize logic for parts or full preview? 
+    // The background script does: filename = filename.replace(/\/+/g, '_');
     preview = preview.replace(/\/+/g, '_');
 
     previewDiv.textContent = preview;
