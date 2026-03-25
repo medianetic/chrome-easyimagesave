@@ -1,18 +1,24 @@
 import { ensureOffscreenDocument, incrementOffscreenOperations, decrementOffscreenOperations } from './offscreenManager';
 import { generateFilename } from './filenameGenerator';
 
+interface OffscreenResponse {
+    success: boolean;
+    data?: string;
+    error?: string;
+}
+
 export async function processImageDownload(imageUrl: string, format: string, altText: string | null, titleAttr: string | null, pageTitle: string | null) {
     console.log(`processImageDownload started: ${imageUrl} (${format})`);
     incrementOffscreenOperations();
     try {
         await ensureOffscreenDocument();
-        const response = await chrome.runtime.sendMessage({
+        const response: OffscreenResponse = await chrome.runtime.sendMessage({
             type: 'CONVERT_IMAGE',
             target: 'offscreen',
             data: { imageUrl: imageUrl, format: format }
         });
 
-        if (response && response.success) {
+        if (response && response.success && response.data) {
             const filename = await generateFilename(imageUrl, format, altText, titleAttr, pageTitle);
             await chrome.downloads.download({
                 url: response.data,
@@ -31,13 +37,13 @@ export async function processImageCopy(imageUrl: string, tabId: number) {
     incrementOffscreenOperations();
     try {
         await ensureOffscreenDocument();
-        const response = await chrome.runtime.sendMessage({
+        const response: OffscreenResponse = await chrome.runtime.sendMessage({
             type: 'CONVERT_IMAGE',
             target: 'offscreen',
             data: { imageUrl: imageUrl, format: 'png' }
         });
 
-        if (response && response.success) {
+        if (response && response.success && response.data) {
             const copyResponse = await chrome.tabs.sendMessage(tabId, { 
                 type: 'WRITE_TO_CLIPBOARD', 
                 dataUrl: response.data 

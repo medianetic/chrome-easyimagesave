@@ -28,16 +28,16 @@ function updatePreview() {
         preview = preview.replace(regex, value);
     });
 
-    // Use shared sanitize logic for parts or full preview? 
-    // The background script does: filename = filename.replace(/\/+/g, '_');
-    preview = preview.replace(/\/+/g, '_');
+    // Use shared sanitize logic
+    preview = sanitizeFilename(preview);
 
     previewDiv.textContent = preview;
 }
 
 // Load settings
 chrome.storage.sync.get({ filenamePattern: DEFAULT_PATTERN }, (items) => {
-    patternInput.value = items.filenamePattern;
+    const settings = items as { filenamePattern: string };
+    patternInput.value = settings.filenamePattern;
     updatePreview();
 });
 

@@ -6,8 +6,8 @@ const sessionFilenameCounter: Record<string, number> = {};
 export async function generateFilename(imageUrl: string, format: string, altText: string | null, titleAttr: string | null, pageTitle: string | null): Promise<string> {
     const items = await chrome.storage.sync.get({ 
         filenamePattern: '{hostname}_{title}_{alt}_{date}.{ext}' 
-    });
-    let pattern = items.filenamePattern;
+    }) as { filenamePattern: string };
+    const pattern: string = items.filenamePattern;
 
     const url = new URL(imageUrl);
     const hostname = url.hostname;
@@ -27,7 +27,7 @@ export async function generateFilename(imageUrl: string, format: string, altText
         'ext': format
     };
 
-    let filename = pattern;
+    let filename: string = pattern;
     Object.entries(replacements).forEach(([key, value]) => {
         const regex = new RegExp(`\\{${key}\\}`, 'g');
         filename = filename.replace(regex, value);
@@ -35,7 +35,7 @@ export async function generateFilename(imageUrl: string, format: string, altText
 
     filename = filename.replace(/\/+/g, '_');
 
-    let nameWithoutExt = filename;
+    let nameWithoutExt: string = filename;
     if (nameWithoutExt.toLowerCase().endsWith('.' + format.toLowerCase())) {
         nameWithoutExt = nameWithoutExt.substring(0, nameWithoutExt.length - (format.length + 1));
     }
