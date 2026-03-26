@@ -27,10 +27,26 @@
 
 ## 📦 Installation (For Users)
 
-Since this extension is in development, you can load it manually in Chrome:
+There are two ways to install the extension:
 
-1.  **Download/Clone:** Download or clone this repository to your computer.
-2.  **Build (optional):** If you are using a source version, run `npm run build` (requires Node.js).
+### Option 1: Use a Pre-built Release (Recommended)
+1.  **Download the Release:** Go to the [Releases](https://github.com/medianetic/chrome-easyimagesave/releases) page on GitHub and download the latest `easyimagesave-vX.X.X.zip` file.
+2.  **Extract:** Unzip the file into a folder on your computer.
+3.  **Open Chrome Extensions:** Navigate to `chrome://extensions/` in your browser.
+4.  **Enable Developer Mode:** Toggle the "Developer mode" switch in the top-right corner.
+5.  **Load Unpacked:** Click the "Load unpacked" button and select the folder where you extracted the zip file.
+
+### Option 2: Install from Source (For Developers)
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/medianetic/chrome-easyimagesave.git
+    cd chrome-easyimagesave
+    ```
+2.  **Install & Build:**
+    ```bash
+    npm install
+    npm run build
+    ```
 3.  **Open Chrome Extensions:** Navigate to `chrome://extensions/` in your browser.
 4.  **Enable Developer Mode:** Toggle the "Developer mode" switch in the top-right corner.
 5.  **Load Unpacked:** Click the "Load unpacked" button and select the `dist` folder within the project directory.
