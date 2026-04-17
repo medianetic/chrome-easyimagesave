@@ -73,6 +73,14 @@ There are two ways to install the extension:
 -   `npm run build`: Create a production-ready build in the `dist/` directory.
 -   `npm run preview`: Preview the production build locally.
 
+## Contributing
+This was released early to get outside contributors involved.
+
+## How to Contribute
+- Fork the repo and create a branch
+- Pick something — check Issues or grab something from the Known Gaps list above
+- Submit a PR — contributors get credited
+
 ## Autor
 * **Nick Weschkalnies** - [@medianetic](https://github.com/medianetic) - <nick@weschkalnies.de>
 
