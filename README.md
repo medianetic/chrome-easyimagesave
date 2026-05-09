@@ -15,7 +15,8 @@
 
 ## 🕒 Recent Updates
 
--   **2024-05-09:** Added **GitHub Actions** for automated releases.
+-   **2024-05-09:** Fixed icon loading issues (v1.0.2).
+-   **2024-05-09:** Added **GitHub Actions** for automated releases (v1.0.1).
 -   **2024-03-21:** Implemented **Settings Page** with customizable filename patterns and a live preview.
 -   **2024-03-21:** Added **Playwright E2E Tests** for automated verification of image conversion and saving logic.
 -   **2024-03-21:** Improved filename sanitization and metadata extraction.
