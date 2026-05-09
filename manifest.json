@@ -1,22 +1,20 @@
 {
   "manifest_version": 3,
   "name": "EasyImageSave",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Save images in JPG, PNG, or WEBP format easily.",
   "permissions": [
-      "contextMenus",
-      "downloads",
-      "activeTab",
-      "offscreen",
-      "notifications",
-      "clipboardWrite",
-      "storage",
-      "scripting"
+    "contextMenus",
+    "downloads",
+    "activeTab",
+    "offscreen",
+    "notifications",
+    "clipboardWrite",
+    "storage",
+    "scripting"
   ],
 
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>"],
   "options_page": "src/options/options.html",
   "background": {
     "service_worker": "src/background/background.ts",
