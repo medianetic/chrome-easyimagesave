@@ -15,6 +15,7 @@
 
 ## 🕒 Recent Updates
 
+-   **2024-05-09:** Added **GitHub Actions** for automated releases.
 -   **2024-03-21:** Implemented **Settings Page** with customizable filename patterns and a live preview.
 -   **2024-03-21:** Added **Playwright E2E Tests** for automated verification of image conversion and saving logic.
 -   **2024-03-21:** Improved filename sanitization and metadata extraction.
@@ -25,31 +26,14 @@
 -   **Vite + CRXJS:** Modern build tooling for fast development and optimized extension builds.
 -   **Chrome Offscreen API:** Leverages standard DOM APIs (like Canvas) within a service-worker-based architecture.
 
-## 📦 Installation (For Users)
+## 📦 Installation
 
-There are two ways to install the extension:
+Lade dir die aktuelle `easyimagesave.zip` unter [Releases](https://github.com/medianetic/chrome-easyimagesave/releases) herunter.
 
-### Option 1: Use a Pre-built Release (Recommended)
-1.  **Download the Release:** Go to the [Releases](https://github.com/medianetic/chrome-easyimagesave/releases) page on GitHub and download the latest `easyimagesave-vX.X.X.zip` file.
-2.  **Extract:** Unzip the file into a folder on your computer.
-3.  **Open Chrome Extensions:** Navigate to `chrome://extensions/` in your browser.
-4.  **Enable Developer Mode:** Toggle the "Developer mode" switch in the top-right corner.
-5.  **Load Unpacked:** Click the "Load unpacked" button and select the folder where you extracted the zip file.
-
-### Option 2: Install from Source (For Developers)
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/medianetic/chrome-easyimagesave.git
-    cd chrome-easyimagesave
-    ```
-2.  **Install & Build:**
-    ```bash
-    npm install
-    npm run build
-    ```
-3.  **Open Chrome Extensions:** Navigate to `chrome://extensions/` in your browser.
-4.  **Enable Developer Mode:** Toggle the "Developer mode" switch in the top-right corner.
-5.  **Load Unpacked:** Click the "Load unpacked" button and select the `dist` folder within the project directory.
+1. **Entpacken:** Entpacke die ZIP-Datei in einen Ordner auf deinem PC.
+2. **Chrome Erweiterungen:** Öffne in Chrome die Adresse `chrome://extensions/`.
+3. **Entwicklermodus:** Aktiviere oben rechts den Entwicklermodus.
+4. **Laden:** Klicke oben links auf *Entpackte Erweiterung laden* und wähle den Ordner aus, den du gerade entpackt hast.
 
 ## 👨‍💻 Development (For Contributors)
 
@@ -60,8 +44,8 @@ There are two ways to install the extension:
 ### Setup
 1.  Clone the repo:
     ```bash
-    git clone https://github.com/your-username/EasyImageSave.git
-    cd EasyImageSave
+    git clone https://github.com/medianetic/chrome-easyimagesave.git
+    cd chrome-easyimagesave
     ```
 2.  Install dependencies:
     ```bash

@@ -1,0 +1,43 @@
+name: Package Chrome Extension
+
+on:
+  push:
+    tags:
+      - "v*" # Löst automatisch aus, wenn du einen Tag wie "v1.0.0" pushst
+  workflow_dispatch: # Erlaubt dir, die Action JEDERZEIT manuell im "Actions" Tab zu starten
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Wichtig, damit die Action das Release im Repo erstellen darf
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Extension
+        run: npm run build
+
+      - name: Create ZIP Package
+        run: |
+          echo "Erstelle easyimagesave.zip aus dem dist-Ordner..."
+          cd dist && zip -r ../easyimagesave.zip .
+
+      - name: Create GitHub Release
+        # Nutzt die aktuelle v2 der Release-Action
+        uses: softprops/action-gh-release@v2
+        with:
+          files: easyimagesave.zip
+          # Wenn es manuell getriggert wird (ohne Tag), erstellen wir ein "Draft"-Release
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          generate_release_notes: true

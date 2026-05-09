@@ -10,7 +10,8 @@
       "offscreen",
       "notifications",
       "clipboardWrite",
-      "storage"
+      "storage",
+      "scripting"
   ],
 
   "host_permissions": [

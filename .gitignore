@@ -23,7 +23,11 @@ GEMINI.md
 *.swo
 .DS_Store
 *.code-workspace
+docs/
 .geminiignore
+
+# Code optimization
+.fallow
 
 # Logs
 npm-debug.log*

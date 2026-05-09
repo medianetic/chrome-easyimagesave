@@ -63,8 +63,27 @@ export async function handleContextMenuClick(info: chrome.contextMenus.OnClickDa
                 titleAttr = response.titleAttr;
                 pageTitle = response.pageTitle;
             }
-        } catch (e) {
-            console.error('Error getting image metadata from content script:', e);
+        } catch (e: any) {
+            console.warn('Error getting image metadata from content script, attempting re-injection:', e);
+            // If connection fails, try to re-inject the content script (common after extension update)
+            if (e.message?.includes('Could not establish connection') || e.message?.includes('Receiving end does not exist')) {
+                try {
+                    await chrome.scripting.executeScript({
+                        target: { tabId: tab.id },
+                        files: ['src/content/content.ts']
+                    });
+                    // Try one more time after injection
+                    const response: ImageMetadata = await chrome.tabs.sendMessage(tab.id, { type: 'GET_IMAGE_URL' });
+                    if (response) {
+                        if (response.imageUrl) imageUrl = response.imageUrl;
+                        altText = response.altText;
+                        titleAttr = response.titleAttr;
+                        pageTitle = response.pageTitle;
+                    }
+                } catch (reinjectError) {
+                    console.error('Failed to re-inject content script:', reinjectError);
+                }
+            }
         }
     }
 

@@ -7,7 +7,7 @@ export async function ensureOffscreenDocument() {
     }
 
     const offscreenPath = 'src/background/offscreen.html';
-    const reasons = ['CLIPBOARD', 'CANVAS', 'DOM_PARSER'];
+    const reasons = ['CLIPBOARD', 'BLOBS', 'DOM_PARSER'];
 
     for (const reason of reasons) {
         try {
