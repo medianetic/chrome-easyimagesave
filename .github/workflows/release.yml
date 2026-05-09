@@ -5,6 +5,10 @@ on:
     tags:
       - "v*" # Löst automatisch aus, wenn du einen Tag wie "v1.0.0" pushst
   workflow_dispatch: # Erlaubt dir, die Action JEDERZEIT manuell im "Actions" Tab zu starten
+    inputs:
+      tag_name:
+        description: 'Tag name for the release (e.g. v1.0.1)'
+        required: false
 
 jobs:
   build-and-release:
@@ -24,6 +28,20 @@ jobs:
           node-version: 24
           cache: 'npm'
 
+      - name: Determine Tag Name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+              echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+            else
+              VERSION=$(node -p "require('./package.json').version")
+              echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Dependencies
         run: npm ci
 
@@ -39,6 +57,7 @@ jobs:
         # Nutzt die aktuelle v3 der Release-Action (Node 24)
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
           files: easyimagesave.zip
           # Wenn es manuell getriggert wird (ohne Tag), erstellen wir ein "Draft"-Release
           draft: ${{ github.event_name == 'workflow_dispatch' }}
