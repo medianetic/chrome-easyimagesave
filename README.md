@@ -28,12 +28,12 @@
 
 ## 📦 Installation
 
-Lade dir die aktuelle `easyimagesave.zip` unter [Releases](https://github.com/medianetic/chrome-easyimagesave/releases) herunter.
+Download the latest `easyimagesave.zip` from [Releases](https://github.com/medianetic/chrome-easyimagesave/releases).
 
-1. **Entpacken:** Entpacke die ZIP-Datei in einen Ordner auf deinem PC.
-2. **Chrome Erweiterungen:** Öffne in Chrome die Adresse `chrome://extensions/`.
-3. **Entwicklermodus:** Aktiviere oben rechts den Entwicklermodus.
-4. **Laden:** Klicke oben links auf *Entpackte Erweiterung laden* und wähle den Ordner aus, den du gerade entpackt hast.
+1. **Extract:** Unzip the ZIP file into a folder on your computer.
+2. **Chrome Extensions:** Open `chrome://extensions/` in Chrome.
+3. **Developer Mode:** Enable **Developer mode** in the top-right corner.
+4. **Load:** Click **Load unpacked** in the top-left corner and select the folder you just extracted.
 
 ## 👨‍💻 Development (For Contributors)
 
