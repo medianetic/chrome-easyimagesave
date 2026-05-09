@@ -11,15 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Wichtig, damit die Action das Release im Repo erstellen darf
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install Dependencies
@@ -34,8 +36,8 @@ jobs:
           cd dist && zip -r ../easyimagesave.zip .
 
       - name: Create GitHub Release
-        # Nutzt die aktuelle v2 der Release-Action
-        uses: softprops/action-gh-release@v2
+        # Nutzt die aktuelle v3 der Release-Action (Node 24)
+        uses: softprops/action-gh-release@v3
         with:
           files: easyimagesave.zip
           # Wenn es manuell getriggert wird (ohne Tag), erstellen wir ein "Draft"-Release
