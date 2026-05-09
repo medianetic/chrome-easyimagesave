@@ -2,31 +2,33 @@ name: Package Chrome Extension
 
 on:
   push:
-    tags:
-      - "v*" # Löst automatisch aus, wenn du einen Tag wie "v1.0.0" pushst
-  workflow_dispatch: # Erlaubt dir, die Action JEDERZEIT manuell im "Actions" Tab zu starten
+    branches:
+      - main # (Falls dein Branch 'master' heißt, hier ändern!)
+    paths:
+      - "package.json" # Löst NUR aus, wenn die package.json auf den main-Branch gepusht wird
+  workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for the release (e.g. v1.0.1)'
+        description: "Tag name for the release (e.g. v1.0.1)"
         required: false
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Wichtig, damit die Action das Release im Repo erstellen darf
+      contents: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4 # V4 ist die aktuelle Version!
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4 # V4 ist die aktuelle Version!
         with:
           node-version: 24
-          cache: 'npm'
+          cache: "npm"
 
       - name: Determine Tag Name
         id: tag
@@ -39,7 +41,9 @@ jobs:
               echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
             fi
           else
-            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            # Wenn es automatisch durch die package.json ausgelöst wird:
+            VERSION=$(node -p "require('./package.json').version")
+            echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
           fi
 
       - name: Install Dependencies
@@ -54,11 +58,9 @@ jobs:
           cd dist && zip -r ../easyimagesave.zip .
 
       - name: Create GitHub Release
-        # Nutzt die aktuelle v3 der Release-Action (Node 24)
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2 # V2 ist die aktuellste offizielle Version
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           files: easyimagesave.zip
-          # Wenn es manuell getriggert wird (ohne Tag), erstellen wir ein "Draft"-Release
           draft: ${{ github.event_name == 'workflow_dispatch' }}
           generate_release_notes: true
